@@ -59,8 +59,6 @@ public class MainActivity extends AppCompatActivity {
             addMsg("User", prompt);
             isRunning = true;
             tvStatus.setText("内核生成中...");
-            
-            // 修复：使用 loadUri 注入 javascript 代替废弃的 evaluateJS
             String js = "javascript:window.cyberSend(" + JSONObject.quote(prompt) + ");";
             session.loadUri(js);
         });
@@ -100,7 +98,6 @@ public class MainActivity extends AppCompatActivity {
             "      let latest = blocks[blocks.length - 1].innerText;" +
             "      if (latest !== lastText) { " +
             "        lastText = latest; " +
-            // 修复：移除废弃的 window.postMessage，改用 DOM 标题变化作为信号
             "        document.title = 'REPLY:' + latest;" +
             "      }" +
             "    }" +
@@ -109,7 +106,6 @@ public class MainActivity extends AppCompatActivity {
             "})();";
         session.loadUri("javascript:" + js);
         
-        // 修复：通过 ContentDelegate 监听标题变化，实现原生与网页通信
         session.setContentDelegate(new GeckoSession.ContentDelegate() {
             @Override
             public void onTitleChange(@NonNull GeckoSession session, String title) {

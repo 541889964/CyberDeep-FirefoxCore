@@ -6,15 +6,9 @@ android {
 
     defaultConfig {
         applicationId "com.cyber.deep"
-        minSdk 26
+        minSdk 26 // 匹配 GeckoView 要求的最低版本
         targetSdk 34
         ndk { abiFilters 'arm64-v8a' }
-    }
-
-    // 强制使用本地提取的 .so 并防止冲突
-    packagingOptions {
-        jniLibs { useLegacyPackaging = true }
-        pickFirst '**/*.so'
     }
 
     buildTypes {
@@ -30,5 +24,6 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.recyclerview:recyclerview:1.3.1'
+    // 直接依赖官方 Maven 仓库的 GeckoView，确保 Java 层与 Native 层版本严格一致
     implementation 'org.mozilla.geckoview:geckoview-beta-arm64-v8a:148.0.20260202090533'
 }
