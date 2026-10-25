@@ -15,7 +15,6 @@ import org.json.JSONObject;
 import org.mozilla.geckoview.GeckoRuntime;
 import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoView;
-import org.mozilla.geckoview.WebMessage;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -60,30 +59,16 @@ public class MainActivity extends AppCompatActivity {
             addMsg("User", prompt);
             isRunning = true;
             tvStatus.setText("内核生成中...");
-            session.evaluateJS("window.cyberSend(" + JSONObject.quote(prompt) + ");", result -> {});
+            
+            // 修复：使用 loadUri 注入 javascript 代替废弃的 evaluateJS
+            String js = "javascript:window.cyberSend(" + JSONObject.quote(prompt) + ");";
+            session.loadUri(js);
         });
     }
 
     private void initGeckoView() {
         if (runtime == null) runtime = GeckoRuntime.create(this);
         session = new GeckoSession();
-
-        session.setMessageDelegate(new GeckoSession.MessageDelegate() {
-            @Override
-            public void onMessage(@NonNull GeckoSession s, String uri, @NonNull WebMessage message, boolean isUserGesture, Long requestId) {
-                String data = message.data;
-                mainHandler.post(() -> {
-                    if ("READY".equals(data)) {
-                        isPageReady = true;
-                        tvStatus.setText("就绪");
-                    } else if (data.startsWith("REPLY:")) {
-                        isRunning = false;
-                        tvStatus.setText("就绪");
-                        updateLastAiMsg(data.substring(6));
-                    }
-                });
-            }
-        }, "https://chat.deepseek.com");
 
         session.open(runtime);
         geckoView.setSession(session);
@@ -96,7 +81,7 @@ public class MainActivity extends AppCompatActivity {
         String js =
             "(function() {" +
             "  localStorage.setItem('userToken', JSON.stringify({value:'" + MY_TOKEN + "', __version:'0'}));" +
-            "  if (window.cyberHooked) { window.postMessage('READY', '*'); return; }" +
+            "  if (window.cyberHooked) return;" +
             "  window.cyberHooked = true;" +
             "  window.cyberSend = function(text) {" +
             "    let ta = document.querySelector('textarea');" +
@@ -113,12 +98,32 @@ public class MainActivity extends AppCompatActivity {
             "    let blocks = document.querySelectorAll('.ds-markdown');" +
             "    if (blocks.length > 0) {" +
             "      let latest = blocks[blocks.length - 1].innerText;" +
-            "      if (latest !== lastText) { lastText = latest; window.postMessage('REPLY:' + latest, '*'); }" +
+            "      if (latest !== lastText) { " +
+            "        lastText = latest; " +
+            // 修复：移除废弃的 window.postMessage，改用 DOM 标题变化作为信号
+            "        document.title = 'REPLY:' + latest;" +
+            "      }" +
             "    }" +
             "  }, 500);" +
-            "  window.postMessage('READY', '*');" +
+            "  document.title = 'READY';" +
             "})();";
-        session.evaluateJS(js, result -> {});
+        session.loadUri("javascript:" + js);
+        
+        // 修复：通过 ContentDelegate 监听标题变化，实现原生与网页通信
+        session.setContentDelegate(new GeckoSession.ContentDelegate() {
+            @Override
+            public void onTitleChange(@NonNull GeckoSession session, String title) {
+                if (title == null) return;
+                if ("READY".equals(title)) {
+                    isPageReady = true;
+                    tvStatus.setText("就绪");
+                } else if (title.startsWith("REPLY:")) {
+                    isRunning = false;
+                    tvStatus.setText("就绪");
+                    updateLastAiMsg(title.substring(6));
+                }
+            }
+        });
     }
 
     private void updateLastAiMsg(String fullText) {
