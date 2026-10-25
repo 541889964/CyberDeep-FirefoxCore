@@ -1,0 +1,19 @@
+name: Build CyberDeep
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Decompress large .so files
+        run: |
+          find app/src/main/jniLibs -name "*.so.gz" -exec gunzip {} \;
+          
+      - uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin' }
+        
+      - run: gradle wrapper --gradle-version 8.11.1
+      - run: echo "sdk.dir=$ANDROID_HOME" > local.properties && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with: { name: CyberDeep-Firefox, path: app/build/outputs/apk/debug/app-debug.apk }
